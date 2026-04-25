@@ -33,7 +33,7 @@ ${cardDesc}
 กรุณาวิเคราะห์ไพ่แต่ละใบและความเชื่อมโยงกัน ให้คำทำนายที่เป็นประโยชน์และสร้างแรงบันดาลใจ ความยาวประมาณ 200-300 คำ ไม่ต้องใช้ Markdown`;
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
     const result = await model.generateContent(prompt);
     const reading = result.response.text();
     res.json({ reading });
