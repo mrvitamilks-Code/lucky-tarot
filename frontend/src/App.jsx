@@ -305,16 +305,33 @@ export default function App() {
   const [history, setHistory] = useState([])
   const [toast, setToast] = useState('')
   const [toastVisible, setToastVisible] = useState(false)
-  const [modalMode, setModalMode] = useState(null) // 'login' | 'register'
+  const [modalMode, setModalMode] = useState(null)
   const [donateAmt, setDonateAmt] = useState(199)
   const [payMethod, setPayMethod] = useState('promptpay')
-  const [usedToday, setUsedToday] = useState(1)
+  const [usedToday, setUsedToday] = useState(0)
+  const [limitReached, setLimitReached] = useState(false)
+  const FREE_LIMIT = 3
 
   const showToast = (msg) => {
     setToast(msg)
     setToastVisible(true)
     setTimeout(() => setToastVisible(false), 2800)
   }
+
+  // ── โหลด limit จาก backend ตอนเปิดหน้าดูดวง ──
+  useEffect(() => {
+    if (page === 'reading') {
+      fetch(`${API_URL}/api/limit`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.used !== undefined) {
+            setUsedToday(data.used)
+            setLimitReached(data.used >= FREE_LIMIT)
+          }
+        })
+        .catch(() => {})
+    }
+  }, [page])
 
   const initCards = useCallback(() => {
     const count = spread === 'one' ? 1 : spread === 'three' ? 3 : 10
@@ -340,6 +357,10 @@ export default function App() {
 
   const startReading = async () => {
     if (!question.trim()) { showToast('กรุณาระบุคำถามก่อนครับ 🔮'); return }
+    if (limitReached) {
+      showToast('⚠️ ครบ 3 ครั้งแล้ววันนี้ กรุณาลองใหม่พรุ่งนี้')
+      return
+    }
     setCards(prev => prev.map(c => ({ ...c, flipped: true })))
     setLoading(true)
     setReading('')
@@ -350,8 +371,23 @@ export default function App() {
         body: JSON.stringify({ question, cards, spread }),
       })
       const data = await res.json()
+
+      // ── ถ้าเกิน limit ──
+      if (res.status === 429) {
+        setLimitReached(true)
+        setUsedToday(FREE_LIMIT)
+        setReading('')
+        setLoading(false)
+        showToast('⚠️ ครบ 3 ครั้งแล้ววันนี้!')
+        return
+      }
+
+      // ── สำเร็จ ──
       setReading(data.reading || 'ไม่สามารถรับคำทำนายได้ในขณะนี้')
-      setUsedToday(u => Math.min(u + 1, 3))
+      if (data.used !== undefined) {
+        setUsedToday(data.used)
+        setLimitReached(data.used >= FREE_LIMIT)
+      }
     } catch {
       setReading('✦ ขณะนี้ระบบกำลังปรับปรุง กรุณาลองใหม่อีกครั้ง หรือลองใหม่ในอีกสักครู่ครับ')
     }
@@ -400,14 +436,51 @@ export default function App() {
       <div style={S.sectionTitle}>✦ ดูดวงไพ่ทาโร่</div>
       <div style={S.divider}></div>
 
-      {/* Daily limit */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(201,168,76,0.06)', border: '1px solid rgba(201,168,76,0.15)', borderRadius: 12, padding: '10px 16px', marginBottom: 20, fontSize: 13, color: '#9B8FA8' }}>
+      {/* Daily limit badge */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        background: limitReached ? 'rgba(255,107,157,0.06)' : 'rgba(201,168,76,0.06)',
+        border: `1px solid ${limitReached ? 'rgba(255,107,157,0.3)' : 'rgba(201,168,76,0.15)'}`,
+        borderRadius: 12, padding: '10px 16px', marginBottom: 20, fontSize: 13, color: '#9B8FA8'
+      }}>
         <div style={{ display: 'flex', gap: 4 }}>
-          {[0,1,2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: i < usedToday ? '#C9A84C' : 'rgba(201,168,76,0.2)', boxShadow: i === usedToday-1 ? '0 0 6px #C9A84C' : 'none' }} />)}
+          {[0,1,2].map(i => <div key={i} style={{
+            width: 8, height: 8, borderRadius: '50%',
+            background: i < usedToday ? (limitReached ? '#FF6B9D' : '#C9A84C') : 'rgba(201,168,76,0.2)',
+            boxShadow: i === usedToday-1 && !limitReached ? '0 0 6px #C9A84C' : 'none'
+          }} />)}
         </div>
-        <span>ใช้ไปแล้ว {usedToday}/3 ครั้ง วันนี้ (ฟรี)</span>
+        <span style={{ color: limitReached ? '#FF6B9D' : '#9B8FA8' }}>
+          {limitReached ? '⚠️ ครบ 3 ครั้งแล้ววันนี้ — รีเซ็ตพรุ่งนี้เที่ยงคืน' : `ใช้ไปแล้ว ${usedToday}/3 ครั้ง วันนี้ (ฟรี)`}
+        </span>
         <button style={{ ...S.btnOutline, marginLeft: 'auto', padding: '4px 12px', fontSize: 11 }} onClick={() => setPage('plans')}>อัปเกรด →</button>
       </div>
+
+      {/* Limit reached — block UI */}
+      {limitReached ? (
+        <div style={{
+          ...S.box, textAlign: 'center', padding: 40,
+          border: '1px solid rgba(255,107,157,0.25)',
+        }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>🔮</div>
+          <div style={{ fontFamily: "'Cinzel Decorative',serif", fontSize: 16, color: '#FF6B9D', marginBottom: 12 }}>
+            ครบ 3 ครั้งแล้ววันนี้
+          </div>
+          <div style={{ fontSize: 14, color: '#9B8FA8', lineHeight: 1.8, marginBottom: 28 }}>
+            ไพ่ทาโร่ต้องการเวลาพักผ่อนเช่นกัน 🌙<br/>
+            คำทำนายใหม่จะพร้อมให้คุณอีกครั้งพรุ่งนี้<br/>
+            หรืออัปเกรดเพื่อดูดวงไม่จำกัด
+          </div>
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button style={S.btnPrimary} onClick={() => setPage('plans')}>
+              ✦ ดูแพ็กเกจสมาชิก
+            </button>
+            <button style={{ ...S.btnOutline, marginTop: 0 }} onClick={() => setPage('donate')}>
+              💝 สนับสนุนเรา
+            </button>
+          </div>
+        </div>
+      ) : (
 
       <div style={S.box}>
         {/* Question */}
@@ -485,6 +558,7 @@ export default function App() {
           </div>
         )}
       </div>
+      )}
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   )
