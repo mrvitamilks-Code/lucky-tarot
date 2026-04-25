@@ -20,7 +20,7 @@ app.post('/api/reading', async (req, res) => {
   }
 
   const cardDesc = cards.map(c =>
-    `- ${c.name}${c.reversed ? ' (กลับหัว)' : ''} ตำแหน่ง "${c.position}" ความหมาย: ${c.meaning}`
+    `- ${c.th || c.name}${c.reversed ? ' (กลับหัว)' : ''} ตำแหน่ง "${c.position}" ความหมาย: ${c.meaning}`
   ).join('\n');
 
   const prompt = `คุณคือหมอดูไพ่ทาโร่ผู้เชี่ยวชาญ ให้คำทำนายเป็นภาษาไทยที่ลึกซึ้ง อ่านง่าย และให้กำลังใจ
@@ -33,7 +33,7 @@ ${cardDesc}
 กรุณาวิเคราะห์ไพ่แต่ละใบและความเชื่อมโยงกัน ให้คำทำนายที่เป็นประโยชน์และสร้างแรงบันดาลใจ ความยาวประมาณ 200-300 คำ ไม่ต้องใช้ Markdown`;
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
     const result = await model.generateContent(prompt);
     const reading = result.response.text();
     res.json({ reading });
